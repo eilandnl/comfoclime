@@ -33,5 +33,28 @@ class ScenarioTests(unittest.TestCase):
         )
 
 
+class ScenarioActivationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_scenario_activation_reports_rejected_dashboard_update(self):
+        class FakeAPI:
+            async def async_update_dashboard(self, hass, **kwargs):
+                self.update = kwargs
+
+        class FakeCoordinator:
+            data = {"scenario": 5, "scenarioTimeLeft": 300}
+
+            async def async_request_refresh(self):
+                return None
+
+        api = FakeAPI()
+        coordinator = FakeCoordinator()
+
+        activated = await SCENARIOS_MODULE.async_activate_scenario(
+            api, coordinator, object(), scenario=7, duration_minutes=60
+        )
+
+        self.assertFalse(activated)
+        self.assertEqual(api.update, {"scenario": 7, "scenario_time_left": 3600})
+
+
 if __name__ == "__main__":
     unittest.main()

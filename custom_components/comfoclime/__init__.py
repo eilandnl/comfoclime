@@ -15,7 +15,7 @@ from .coordinator import (
 from .scenarios import (
     SCENARIO_DEFAULT_DURATIONS_MINUTES,
     SCENARIO_VALUES,
-    scenario_update_confirmed,
+    async_activate_scenario,
 )
 
 DOMAIN = "comfoclime"
@@ -174,21 +174,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
         api: ComfoClimeAPI = entry_data["api"]
         try:
-            await api.async_update_dashboard(
+            activated = await async_activate_scenario(
+                api,
+                entry_data["coordinator"],
                 hass,
-                scenario=SCENARIO_VALUES[scenario],
-                scenario_time_left=int(duration_minutes * 60),
+                SCENARIO_VALUES[scenario],
+                duration_minutes,
             )
-            await entry_data["coordinator"].async_request_refresh()
         except Exception as err:
             _LOGGER.exception("Failed to set ComfoClime scenario %s", scenario)
             raise HomeAssistantError(
                 f"Failed to set ComfoClime scenario {scenario}: {err}"
             ) from err
 
-        if not scenario_update_confirmed(
-            SCENARIO_VALUES[scenario], entry_data["coordinator"].data
-        ):
+        if not activated:
             raise HomeAssistantError(
                 f"ComfoClime did not activate scenario {scenario}. "
                 "An active scenario may need to finish before another can start."

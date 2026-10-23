@@ -31,7 +31,11 @@ from .coordinator import (
     ComfoClimeDashboardCoordinator,
     ComfoClimeThermalprofileCoordinator,
 )
-from .scenarios import SCENARIO_DEFAULT_DURATIONS_MINUTES, SCENARIO_VALUES
+from .scenarios import (
+    SCENARIO_DEFAULT_DURATIONS_MINUTES,
+    SCENARIO_VALUES,
+    async_activate_scenario,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -563,16 +567,24 @@ class ComfoClimeClimate(
             )
 
         try:
-            await self.async_update_dashboard(
-                scenario=SCENARIO_VALUES[scenario_mode],
-                scenario_time_left=duration_minutes * 60,
+            activated = await async_activate_scenario(
+                self._api,
+                self.coordinator,
+                self.hass,
+                SCENARIO_VALUES[scenario_mode],
+                duration_minutes,
             )
-            await self._async_refresh_coordinators()
         except Exception as err:
             _LOGGER.exception("Failed to set scenario mode %s", scenario_mode)
             raise HomeAssistantError(
                 f"Failed to set ComfoClime scenario {scenario_mode}: {err}"
             ) from err
+
+        if not activated:
+            raise HomeAssistantError(
+                f"ComfoClime did not activate scenario {scenario_mode}. "
+                "An active scenario may need to finish before another can start."
+            )
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set fan mode by updating fan speed via dashboard API.
