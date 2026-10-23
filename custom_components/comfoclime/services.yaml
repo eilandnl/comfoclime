@@ -124,3 +124,38 @@ set_bypass_mode:
           max: 1440
           step: 1
           unit_of_measurement: min
+
+set_ventilation_mode:
+  name: Ventilatiestand instellen
+  description: Zet tijdelijk een ventilatiestand, Away of Boost op een verbonden ComfoAir Q, of hervat het weekprogramma.
+  fields:
+    device_id:
+      name: ComfoAir Q
+      description: Kies de ComfoAir Q die via ComfoClime verbonden is; optioneel als er precies één is.
+      required: false
+      selector:
+        device:
+          integration: comfoclime
+    mode:
+      name: Stand
+      required: true
+      selector:
+        select:
+          options:
+            - auto
+            - away
+            - low
+            - medium
+            - high
+            - boost
+    duration:
+      name: Duur
+      description: Tijdelijke duur in minuten. Auto annuleert overrides en hervat de ingestelde regeling.
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min

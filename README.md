@@ -11,6 +11,9 @@ ComfoClime is a HVAC solution as additional device for the ComfoAir Q series. It
 * climate control entity with HVAC modes (heat/cool/fan_only/off) and preset modes (comfort/power/eco)
 * reading and writing the active temperature profile
 * setting the ventilation fan speed
+* temporary ComfoAir Q ventilation presets (Away, Low, Medium, High and Boost) with automatic return to the schedule
+* ComfoAir Q filter days remaining and reported alarm codes
+* ComfoAir Q passive-cooling availability from ComfoClime firmware 1.5.5+
 * autodiscovering all connected devices
 * property (r/w) and telemetry (r/o) values of *all* connected devices
 * restarting the ComfoClime unit via service call
@@ -18,7 +21,7 @@ ComfoClime is a HVAC solution as additional device for the ComfoAir Q series. It
 * locals in english and german
 
 ## Installation
-* add this repository via HACS (user defined repositories, URL: `https://github.com/msfuture/comfoclime`)
+* add this fork via HACS (user defined repositories, URL: `https://github.com/eilandnl/comfoclime`)
 * install the "Zehnder ComfoClime" integration in HACS
 * restart Home Assistant
 * add the ComfoClime device (connected devices like the ComfoAir Q are detected and added automatically)
@@ -61,6 +64,18 @@ Use `comfoclime.set_bypass_mode` to temporarily set the connected ComfoAir Q
 bypass to `on` or `off`, or select `auto` to cancel the override and return to
 the unit's automatic control. The optional duration is in minutes (1–1440)
 and defaults to 60 minutes. Timed overrides expire automatically.
+
+### Timed ComfoAir Q ventilation presets
+
+Use `comfoclime.set_ventilation_mode` to run `away`, `low`, `medium`, `high` or
+`boost` for a chosen duration (1–1440 minutes). Select `auto` to cancel the
+ComfoAir Q preset timers and resume its normal schedule. The integration also
+exposes the remaining filter life and the raw non-zero alarm codes reported by
+each connected device. Alarm codes are not decoded into Zehnder descriptions.
+
+The dashboard's `Passive Cooling Available` binary sensor reflects the
+`caqFreeCoolingAvailable` field, which the ComfoClime API documents for
+firmware 1.5.5 and newer.
 
 ### Preset Modes
 - **Comfort**: Maximum comfort temperature profile

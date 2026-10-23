@@ -8,6 +8,7 @@ import homeassistant.helpers.device_registry as dr
 
 from .comfoclime_api import ComfoClimeAPI
 from .coordinator import (
+    ComfoClimeAlarmsCoordinator,
     ComfoClimeDashboardCoordinator,
     ComfoClimeThermalprofileCoordinator,
 )
@@ -248,6 +249,65 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 f"Failed to set ComfoAir Q bypass mode to {mode}: {err}"
             ) from err
 
+    async def handle_set_ventilation_mode_service(call: ServiceCall) -> None:
+        mode = call.data["mode"]
+        device_id = call.data.get("device_id")
+
+        if device_id:
+            device, entry_data = _get_target_device_and_entry(hass, device_id)
+            device_uuid = next(
+                identifier
+                for domain, identifier in device.identifiers
+                if domain == DOMAIN
+            )
+            q_device = next(
+                (
+                    connected_device
+                    for connected_device in entry_data.get("devices", [])
+                    if connected_device.get("uuid") == device_uuid
+                ),
+                None,
+            )
+            if not q_device or q_device.get("modelTypeId") != 1:
+                raise HomeAssistantError(
+                    "Ventilation mode control is only supported for a connected ComfoAir Q"
+                )
+        else:
+            matches = [
+                (entry_data, device)
+                for entry_data in hass.data.get(DOMAIN, {}).values()
+                for device in entry_data.get("devices", [])
+                if device.get("modelTypeId") == 1
+                and device.get("uuid") not in (None, "NULL")
+            ]
+            if len(matches) != 1:
+                raise HomeAssistantError(
+                    "Select a ComfoAir Q device when zero or multiple units are configured"
+                )
+            entry_data, q_device = matches[0]
+            device_uuid = q_device["uuid"]
+
+        duration_minutes = call.data.get("duration", 60)
+        api: ComfoClimeAPI = entry_data["api"]
+        try:
+            await api.async_set_ventilation_mode(
+                hass,
+                device_uuid=device_uuid,
+                mode=mode,
+                duration_minutes=duration_minutes,
+            )
+            await entry_data["coordinator"].async_request_refresh()
+            _LOGGER.info(
+                "ComfoAir Q ventilation mode set to %s for %s minutes",
+                mode,
+                duration_minutes,
+            )
+        except Exception as err:
+            _LOGGER.exception("Failed to set ComfoAir Q ventilation mode to %s", mode)
+            raise HomeAssistantError(
+                f"Failed to set ComfoAir Q ventilation mode to {mode}: {err}"
+            ) from err
+
     hass.services.async_register(DOMAIN, "set_property", handle_set_property_service)
     hass.services.async_register(DOMAIN, "reset_system", handle_reset_system_service)
     hass.services.async_register(
@@ -255,6 +315,9 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     )
     hass.services.async_register(
         DOMAIN, "set_bypass_mode", handle_set_bypass_mode_service
+    )
+    hass.services.async_register(
+        DOMAIN, "set_ventilation_mode", handle_set_ventilation_mode_service
     )
     return True
 
@@ -267,11 +330,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await dashboard_coordinator.async_config_entry_first_refresh()
     thermalprofile_coordinator = ComfoClimeThermalprofileCoordinator(hass, api)
     await thermalprofile_coordinator.async_config_entry_first_refresh()
+    alarms_coordinator = ComfoClimeAlarmsCoordinator(hass, api)
+    try:
+        await alarms_coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        _LOGGER.warning("Reported alarm data unavailable during setup: %s", err)
     devices = await api.async_get_connected_devices(hass)
     hass.data[DOMAIN][entry.entry_id] = {
         "api": api,
         "coordinator": dashboard_coordinator,
         "tpcoordinator": thermalprofile_coordinator,
+        "alarms_coordinator": alarms_coordinator,
         "devices": devices,
         "main_device": next(
             (device for device in devices if device.get("modelTypeId") == 20), None
@@ -279,12 +348,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+        entry,
+        ["sensor", "binary_sensor", "switch", "number", "select", "fan", "climate"],
     )
     if (
         not hass.services.has_service(DOMAIN, "set_property")
         or not hass.services.has_service(DOMAIN, "set_scenario_mode")
         or not hass.services.has_service(DOMAIN, "set_bypass_mode")
+        or not hass.services.has_service(DOMAIN, "set_ventilation_mode")
     ):
         await async_setup(hass, {})
     return True
@@ -292,7 +363,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+        entry,
+        ["sensor", "binary_sensor", "switch", "number", "select", "fan", "climate"],
     )
     if not unload_ok:
         return False
@@ -303,6 +375,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.services.async_remove(DOMAIN, "reset_system")
         hass.services.async_remove(DOMAIN, "set_scenario_mode")
         hass.services.async_remove(DOMAIN, "set_bypass_mode")
+        hass.services.async_remove(DOMAIN, "set_ventilation_mode")
         hass.data.pop(DOMAIN)
     return True
 

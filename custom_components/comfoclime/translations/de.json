@@ -128,6 +128,17 @@
             "false": "Aus",
             "true": "An"
             }
+        },
+        "days_until_filter_replacement": {
+          "name": "Tage bis Filterwechsel"
+        },
+        "reported_alarm_count": {
+          "name": "Gemeldete Fehleranzahl"
+        }
+      },
+      "binary_sensor": {
+        "active_cooling_available": {
+          "name": "Passive Kühlung verfügbar"
         }
       },
       "select": {

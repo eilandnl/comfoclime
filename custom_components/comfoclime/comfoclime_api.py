@@ -127,6 +127,27 @@ class ComfoClimeAPI:
         response.raise_for_status()
         return response.json().get("devices", [])
 
+    async def async_get_alarms(self, hass):
+        async with self._request_lock:
+            return await hass.async_add_executor_job(self.get_alarms)
+
+    def get_alarms(self):
+        """Get reported ComfoNet alarm codes for all connected devices."""
+        if not self.uuid:
+            self.get_uuid()
+        url = f"{self.base_url}/system/{self.uuid}/alarms"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        devices = data.get("devices")
+        if not isinstance(devices, list):
+            raise ValueError("Unexpected alarm response format")
+        return {
+            device["uuid"]: device.get("errors", [])
+            for device in devices
+            if isinstance(device, dict) and isinstance(device.get("uuid"), str)
+        }
+
     async def async_read_telemetry_for_device(
         self, hass, device_uuid, telemetry_id, faktor=1.0, signed=True, byte_count=None
     ):
@@ -495,6 +516,79 @@ class ComfoClimeAPI:
                 mode,
                 duration_minutes,
             )
+
+    async def async_set_ventilation_mode(
+        self,
+        hass,
+        device_uuid: str,
+        mode: str,
+        duration_minutes: int = 60,
+    ) -> None:
+        """Set a temporary ComfoAir Q ventilation preset or return to auto."""
+        async with self._request_lock:
+            await hass.async_add_executor_job(
+                self.set_ventilation_mode,
+                device_uuid,
+                mode,
+                duration_minutes,
+            )
+
+    def set_ventilation_mode(
+        self,
+        device_uuid: str,
+        mode: str,
+        duration_minutes: int = 60,
+    ) -> None:
+        """Send a documented SCHEDULE timer command for a ComfoAir Q preset."""
+        if mode == "auto":
+            self.call_device_method(
+                device_uuid=device_uuid,
+                unit=0x15,
+                subunit=0x01,
+                method=0x85,
+                data=[0x00],  # TIMER_DEFAULT: cancel all preset overrides.
+            )
+            return
+
+        if (
+            isinstance(duration_minutes, bool)
+            or not isinstance(duration_minutes, (int, float))
+            or not float(duration_minutes).is_integer()
+            or not 1 <= duration_minutes <= 1440
+        ):
+            raise ValueError("Ventilation override duration must be 1–1440 minutes")
+
+        timers_and_values = {
+            "away": (0x0B, 0x00),
+            "low": (0x01, 0x01),
+            "medium": (0x01, 0x02),
+            "high": (0x01, 0x03),
+            "boost": (0x06, 0x03),
+        }
+        try:
+            timer, value = timers_and_values[mode]
+        except KeyError as err:
+            raise ValueError(
+                "Ventilation mode must be 'auto', 'away', 'low', 'medium', "
+                "'high', or 'boost'"
+            ) from err
+
+        duration_seconds = int(duration_minutes) * 60
+        self.call_device_method(
+            device_uuid=device_uuid,
+            unit=0x15,
+            subunit=0x01,
+            method=0x84,
+            data=[
+                timer,
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Start immediately (signed little-endian int32 delay).
+                *duration_seconds.to_bytes(4, byteorder="little", signed=True),
+                value,
+            ],
+        )
 
     def set_bypass_mode(
         self,

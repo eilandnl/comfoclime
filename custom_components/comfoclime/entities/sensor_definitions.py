@@ -274,6 +274,15 @@ CONNECTED_DEVICE_SENSORS = {
             "state_class": "total_increasing",
         },
         {
+            "telemetry_id": 192,
+            "name": "Days Until Filter Replacement",
+            "translation_key": "days_until_filter_replacement",
+            "unit": "d",
+            "byte_count": 2,
+            "signed": False,
+            "state_class": "measurement",
+        },
+        {
             "telemetry_id": 209,
             "name": "Mean outdoor temperature (RMOT)",
             "translation_key": "temp_rmot",

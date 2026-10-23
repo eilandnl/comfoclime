@@ -131,6 +131,17 @@
             "false": "Off",
             "true": "On"
             }
+        },
+        "days_until_filter_replacement": {
+          "name": "Days Until Filter Replacement"
+        },
+        "reported_alarm_count": {
+          "name": "Reported Alarm Count"
+        }
+      },
+      "binary_sensor": {
+        "active_cooling_available": {
+          "name": "Passive Cooling Available"
         }
       },
       "select": {
