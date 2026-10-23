@@ -276,6 +276,7 @@ class ComfoClimeAPI:
 
     def update_dashboard(
         self,
+        hass,
         set_point_temperature: float | None = None,
         fan_speed: int | None = None,
         season: int | None = None,
@@ -357,7 +358,7 @@ class ComfoClimeAPI:
             return {}
 
         # Add timestamp to payload
-        tz = ZoneInfo(self.hass.config.time_zone)
+        tz = ZoneInfo(hass.config.time_zone)
         payload["timestamp"] = datetime.now(tz).isoformat()
 
         headers = {"content-type": "application/json; charset=utf-8"}
@@ -379,7 +380,7 @@ class ComfoClimeAPI:
         """Async wrapper for update_dashboard method."""
         async with self._request_lock:
             return await hass.async_add_executor_job(
-                lambda: self.update_dashboard(**kwargs)
+                lambda: self.update_dashboard(hass, **kwargs)
             )
 
     async def async_update_thermal_profile(self, hass, updates: dict):
@@ -404,7 +405,7 @@ class ComfoClimeAPI:
 
             def _update():
                 # First update dashboard to set hpStandby
-                self.update_dashboard(hp_standby=hp_standby)
+                self.update_dashboard(hass, hp_standby=hp_standby)
                 # Then update thermal profile to set season
                 if not hp_standby:  # Only set season if device is active
                     self.update_thermal_profile({"season": {"season": season}})
