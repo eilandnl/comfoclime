@@ -13,3 +13,16 @@ SCENARIO_DEFAULT_DURATIONS_MINUTES = {
     "holiday": 24 * 60,
     "scenario_boost": 30,
 }
+
+
+def scenario_update_confirmed(expected_scenario, dashboard):
+    """Return whether the dashboard confirms the requested active scenario."""
+    if dashboard is None or dashboard.get("scenario") != expected_scenario:
+        return False
+
+    remaining = dashboard.get("scenarioTimeLeft")
+    return (
+        isinstance(remaining, (int, float))
+        and not isinstance(remaining, bool)
+        and remaining > 0
+    )

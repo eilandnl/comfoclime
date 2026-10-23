@@ -544,9 +544,9 @@ class ComfoClimeAPI:
             self.call_device_method(
                 device_uuid=device_uuid,
                 unit=0x15,
-                subunit=0x01,
+                subunit=0x08,
                 method=0x85,
-                data=[0x00],  # TIMER_DEFAULT: cancel all preset overrides.
+                data=[0x01],  # Return airflow control to the scheduler.
             )
             return
 

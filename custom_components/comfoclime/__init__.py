@@ -12,7 +12,11 @@ from .coordinator import (
     ComfoClimeDashboardCoordinator,
     ComfoClimeThermalprofileCoordinator,
 )
-from .scenarios import SCENARIO_DEFAULT_DURATIONS_MINUTES, SCENARIO_VALUES
+from .scenarios import (
+    SCENARIO_DEFAULT_DURATIONS_MINUTES,
+    SCENARIO_VALUES,
+    scenario_update_confirmed,
+)
 
 DOMAIN = "comfoclime"
 
@@ -176,17 +180,26 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 scenario_time_left=int(duration_minutes * 60),
             )
             await entry_data["coordinator"].async_request_refresh()
-            _LOGGER.info(
-                "Scenario %s set for %s minutes on %s",
-                scenario,
-                duration_minutes,
-                device_uuid,
-            )
         except Exception as err:
             _LOGGER.exception("Failed to set ComfoClime scenario %s", scenario)
             raise HomeAssistantError(
                 f"Failed to set ComfoClime scenario {scenario}: {err}"
             ) from err
+
+        if not scenario_update_confirmed(
+            SCENARIO_VALUES[scenario], entry_data["coordinator"].data
+        ):
+            raise HomeAssistantError(
+                f"ComfoClime did not activate scenario {scenario}. "
+                "An active scenario may need to finish before another can start."
+            )
+
+        _LOGGER.info(
+            "Scenario %s set for %s minutes on %s",
+            scenario,
+            duration_minutes,
+            device_uuid,
+        )
 
     async def handle_set_bypass_mode_service(call: ServiceCall) -> None:
         mode = call.data["mode"]

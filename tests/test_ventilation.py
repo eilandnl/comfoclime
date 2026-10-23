@@ -93,8 +93,8 @@ class VentilationTests(unittest.TestCase):
             api.set_ventilation_mode("SIT17004997", "auto")
 
         put.assert_called_once_with(
-            "http://comfoclime.local/device/SIT17004997/method/21/1/133",
-            json={"data": [0]},
+            "http://comfoclime.local/device/SIT17004997/method/21/8/133",
+            json={"data": [1]},
             timeout=5,
         )
         response.raise_for_status.assert_called_once_with()
