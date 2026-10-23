@@ -55,6 +55,13 @@ The service accepts an optional duration in minutes (1–1440); defaults are
 scenario identifiers and defaults follow the still-open upstream proposal and
 have not been verified against every ComfoClime firmware version.
 
+### ComfoAir Q bypass
+
+Use `comfoclime.set_bypass_mode` to temporarily set the connected ComfoAir Q
+bypass to `on` or `off`, or select `auto` to cancel the override and return to
+the unit's automatic control. The optional duration is in minutes (1–1440)
+and defaults to 60 minutes. Timed overrides expire automatically.
+
 ### Preset Modes
 - **Comfort**: Maximum comfort temperature profile
 - **Power**: Power saving temperature profile

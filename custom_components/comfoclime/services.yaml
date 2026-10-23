@@ -92,3 +92,35 @@ set_scenario_mode:
           max: 1440
           step: 1
           unit_of_measurement: min
+
+set_bypass_mode:
+  name: Bypassstand instellen
+  description: Zet de ComfoAir Q-bypass tijdelijk open of dicht, of herstel automatische regeling.
+  fields:
+    device_id:
+      name: ComfoAir Q
+      description: Kies de ComfoAir Q die via ComfoClime verbonden is; optioneel als er precies één is.
+      required: false
+      selector:
+        device:
+          integration: comfoclime
+    mode:
+      name: Stand
+      required: true
+      selector:
+        select:
+          options:
+            - auto
+            - on
+            - off
+    duration:
+      name: Duur
+      description: Tijdelijke duur voor aan of uit; automatische stand annuleert de tijdelijke override.
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min

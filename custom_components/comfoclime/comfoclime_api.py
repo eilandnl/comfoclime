@@ -480,6 +480,82 @@ class ComfoClimeAPI:
             )
             raise
 
+    async def async_set_bypass_mode(
+        self,
+        hass,
+        device_uuid: str,
+        mode: str,
+        duration_minutes: int = 60,
+    ) -> None:
+        """Set a temporary ComfoAir Q bypass override or return to auto."""
+        async with self._request_lock:
+            await hass.async_add_executor_job(
+                self.set_bypass_mode,
+                device_uuid,
+                mode,
+                duration_minutes,
+            )
+
+    def set_bypass_mode(
+        self,
+        device_uuid: str,
+        mode: str,
+        duration_minutes: int = 60,
+    ) -> None:
+        """Send a documented SCHEDULE timer command for the ComfoAir Q bypass."""
+        if mode == "auto":
+            method = 0x85  # DISABLETIMERENTRY cancels the bypass override.
+            data = [0x01]  # TIMER_DEFAULT
+        elif mode in ("on", "off"):
+            if (
+                isinstance(duration_minutes, bool)
+                or not isinstance(duration_minutes, (int, float))
+                or not float(duration_minutes).is_integer()
+                or not 1 <= duration_minutes <= 1440
+            ):
+                raise ValueError("Bypass override duration must be 1–1440 minutes")
+            duration_minutes = int(duration_minutes)
+            method = 0x84  # ENABLETIMERENTRY starts a timed bypass override.
+            value = 0x01 if mode == "on" else 0x02
+            duration_seconds = duration_minutes * 60
+            data = [
+                0x01,  # TIMER_DEFAULT
+                0x00,
+                0x00,
+                0x00,
+                0x00,  # Delay: start immediately (signed little-endian int32).
+                *duration_seconds.to_bytes(4, byteorder="little", signed=True),
+                value,
+            ]
+        else:
+            raise ValueError("Bypass mode must be 'auto', 'on', or 'off'")
+
+        self.call_device_method(
+            device_uuid=device_uuid,
+            unit=0x15,  # SCHEDULE
+            subunit=0x02,  # BYPASS
+            method=method,
+            data=data,
+        )
+
+    def call_device_method(
+        self,
+        device_uuid: str,
+        unit: int,
+        subunit: int,
+        method: int,
+        data: list[int],
+    ) -> None:
+        """Call a raw ComfoNet method through the ComfoClime REST API."""
+        if not all(
+            isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 255
+            for value in (unit, subunit, method, *data)
+        ):
+            raise ValueError("Method address and payload values must be bytes")
+        url = f"{self.base_url}/device/{device_uuid}/method/{unit}/{subunit}/{method}"
+        response = requests.put(url, json={"data": data}, timeout=5)
+        response.raise_for_status()
+
     async def async_reset_system(self, hass):
         async with self._request_lock:
             return await hass.async_add_executor_job(self.reset_system)
