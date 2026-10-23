@@ -215,9 +215,9 @@ class ComfoClimeStandbySwitch(
     def _set_status(self, value):
         try:
             if value == 0:
-                self._api.update_dashboard(hp_standby=True)
+                self._api.update_dashboard(self.hass, hp_standby=True)
             if value == 1:
-                self._api.update_dashboard(hp_standby=False)
+                self._api.update_dashboard(self.hass, hp_standby=False)
             self._state = value == 1
             self.hass.create_task(self.coordinator.async_request_refresh())
 
