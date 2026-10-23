@@ -255,20 +255,6 @@
                 }
             }
         }
-      },
-      "button": {
-        "temperature_profile_warm": {
-          "name": "Set Warm Profile"
-        },
-        "temperature_profile_normal": {
-          "name": "Set Normal Profile"
-        },
-        "temperature_profile_cool": {
-          "name": "Set Cool Profile"
-        },
-        "temperature_profile_automatic": {
-          "name": "Follow Temperature Schedule"
-        }
       }
     },
     "config": {

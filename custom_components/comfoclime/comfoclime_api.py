@@ -399,41 +399,6 @@ class ComfoClimeAPI:
                 lambda: self.update_dashboard(hass, **kwargs)
             )
 
-    async def async_call_device_method(
-        self,
-        hass,
-        device_uuid: str,
-        unit: int,
-        subunit: int,
-        method: int,
-        data: list[int],
-    ) -> None:
-        """Call a ComfoNet device method with its raw RMI payload."""
-        async with self._request_lock:
-            await hass.async_add_executor_job(
-                self.call_device_method,
-                device_uuid,
-                unit,
-                subunit,
-                method,
-                data,
-            )
-
-    def call_device_method(
-        self,
-        device_uuid: str,
-        unit: int,
-        subunit: int,
-        method: int,
-        data: list[int],
-    ) -> None:
-        """Call a ComfoNet device method through the ComfoClime REST API."""
-        if not all(0 <= value <= 255 for value in data):
-            raise ValueError("Method payload values must be bytes")
-        url = f"{self.base_url}/device/{device_uuid}/method/{unit}/{subunit}/{method}"
-        response = requests.put(url, json={"data": data}, timeout=5)
-        response.raise_for_status()
-
     async def async_update_thermal_profile(self, hass, updates: dict):
         """Async wrapper for update_thermal_profile method."""
         async with self._request_lock:

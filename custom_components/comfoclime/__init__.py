@@ -215,7 +215,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate", "button"]
+        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
     )
     if not hass.services.has_service(
         DOMAIN, "set_property"
@@ -226,7 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate", "button"]
+        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
     )
     if not unload_ok:
         return False

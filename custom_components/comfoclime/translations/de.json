@@ -252,20 +252,6 @@
                 }
             }
         }
-      },
-      "button": {
-        "temperature_profile_warm": {
-          "name": "Warmes Profil einstellen"
-        },
-        "temperature_profile_normal": {
-          "name": "Normales Profil einstellen"
-        },
-        "temperature_profile_cool": {
-          "name": "Kaltes Profil einstellen"
-        },
-        "temperature_profile_automatic": {
-          "name": "Temperaturzeitplan folgen"
-        }
       }
     },
     "config": {

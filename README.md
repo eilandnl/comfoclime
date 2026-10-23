@@ -55,15 +55,6 @@ The service accepts an optional duration in minutes (1–1440); defaults are
 scenario identifiers and defaults follow the still-open upstream proposal and
 have not been verified against every ComfoClime firmware version.
 
-### ComfoAir Q temperature profiles
-
-For each connected ComfoAir Q, the integration adds command buttons for Warm,
-Normal, Cool and Follow Temperature Schedule. These are write-only commands:
-the ComfoClime API does not currently provide reliable readback of the active
-Q temperature profile, so Home Assistant does not display a selected profile.
-The commands use the documented ComfoNet scheduler protocol, but the raw method
-route has not been verified against every ComfoClime API or device firmware.
-
 ### Preset Modes
 - **Comfort**: Maximum comfort temperature profile
 - **Power**: Power saving temperature profile
