@@ -111,8 +111,8 @@ set_bypass_mode:
         select:
           options:
             - auto
-            - on
-            - off
+            - "on"
+            - "off"
     duration:
       name: Duur
       description: Tijdelijke duur voor aan of uit; automatische stand annuleert de tijdelijke override.
