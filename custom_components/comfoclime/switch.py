@@ -28,7 +28,6 @@ async def async_setup_entry(
     except Exception as e:
         _LOGGER.error(f"UUID konnte nicht geladen werden: {e}")
         return
-    devices = hass.data[DOMAIN][entry.entry_id]["devices"]
     main_device = hass.data[DOMAIN][entry.entry_id]["main_device"]
 
     data = hass.data[DOMAIN][entry.entry_id]

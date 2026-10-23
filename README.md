@@ -8,17 +8,19 @@ HomeAssistant integration of Zehnder ComfoClime (and all devices in ComfoNet bus
 ComfoClime is a HVAC solution as additional device for the ComfoAir Q series. It comes with its own app and an propietary JSON API. The ComfoClime unit is connected to the local network via WiFi/WLAN, the API is available only local via HTTP requests without authentication. The integration can also control the ventilation main unit ComfoAir Q. It currently offers:
 
 * reading the dashboard data similar to the official app
-* climate control entity with HVAC modes (heat/cool/fan_only/off) and preset modes (comfort/power/eco)
-* reading and writing the active temperature profile
+* climate control entity with HVAC modes (heat/cool/fan_only/off), temperature profiles and scenarios
+* reading and writing the active temperature profile and comfort settings
 * setting the ventilation fan speed
 * temporary ComfoAir Q ventilation presets (Away, Low, Medium, High and Boost) with automatic return to the schedule
+* temporary ComfoAir Q bypass control (on/off, or automatic)
+* temporary Cooking, Party, Holiday and Boost scenarios
 * ComfoAir Q filter days remaining and reported alarm codes
 * ComfoAir Q passive-cooling availability from ComfoClime firmware 1.5.5+
 * autodiscovering all connected devices
 * property (r/w) and telemetry (r/o) values of *all* connected devices
 * restarting the ComfoClime unit via service call
 * configuration via config flow by host/ip
-* locals in english and german
+* translations in English and German
 
 ## Installation
 * add this fork via HACS (user defined repositories, URL: `https://github.com/eilandnl/comfoclime`)
@@ -77,10 +79,10 @@ The dashboard's `Passive Cooling Available` binary sensor reflects the
 `caqFreeCoolingAvailable` field, which the ComfoClime API documents for
 firmware 1.5.5 and newer.
 
-### Preset Modes
+### Temperature Profiles and Preset Modes
 - **Comfort**: Maximum comfort temperature profile
-- **Power**: Power saving temperature profile
 - **Eco**: Energy efficient temperature profile
+- **Boost, Cooking, Party and Holiday**: Temporary ComfoClime scenarios
 
 ### Temperature Control
 - Set target temperature for heating (15-25°C) and cooling (20-28°C) seasons
@@ -114,8 +116,8 @@ mode: single
 
 For details, see https://github.com/msfuture/comfoclime/issues/7.
 
-## Current ToDo / development
-There are many more telemetry and property values, that make sense to be offered by the integration. The ComfoClime unit itself is fully integrated but there are some missing sensors, switches and numbers of the ComfoAirQ unit to be added in the future. You are missing one? The definitions are in seperate files in the entities folder, so you can try them yourself. If they are working you can open an issue or directly open a pull request.
+## Device coverage
+Available controls and telemetry depend on the connected device model and firmware. The integration exposes the ComfoClime climate controls and selected ComfoAir Q ventilation, bypass, alarm and filter data; it does not decode every ComfoNet property or alarm code. Validate additional device properties against the target model and firmware before relying on them.
 
 Feel free to participate! 🙋‍♂️
 
