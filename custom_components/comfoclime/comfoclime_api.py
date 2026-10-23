@@ -296,29 +296,13 @@ class ComfoClimeAPI:
         temperature_profile: int | None = None,
         season_profile: int | None = None,
         status: int | None = None,
+        scenario: int | None = None,
+        scenario_time_left: int | None = None,
     ) -> dict:
         """Update dashboard settings via API.
 
         Modern method for dashboard updates. Only fields that are provided
         (not None) will be included in the update payload.
-
-        # Android app export from @msfuture
-        payload = {
-            "@type": None,
-            "name": None,
-            "displayName": None,
-            "description": None,
-            "timestamp": datetime.datetime.now().isoformat(),
-            "status": status,
-            "setPointTemperature": set_point_temperature,
-            "temperatureProfile": temperature_profile,
-            "seasonProfile": season_profile,
-            "fanSpeed": fan_speed,
-            "scenario": None,
-            "scenarioTimeLeft": None,
-            "season": season,
-            "schedule": None,
-        }
 
         The API distinguishes between two modes:
         - Automatic mode (status=1): Uses preset profiles (seasonProfile, temperatureProfile)
@@ -333,6 +317,8 @@ class ComfoClimeAPI:
             temperature_profile: Temperature profile/preset (0=comfort, 1=boost, 2=eco)
             season_profile: Season profile/preset (0=comfort, 1=boost, 2=eco)
             status: Temperature control mode (0=manual, 1=automatic)
+            scenario: ComfoClime scenario identifier.
+            scenario_time_left: Scenario duration remaining in seconds.
 
         Returns:
             Response JSON from the API
@@ -343,8 +329,7 @@ class ComfoClimeAPI:
         if not self.uuid:
             self.get_uuid()
 
-        # Dynamically build payload; only include keys explicitly provided.
-        # payload: dict = {}
+        # Build the dashboard request with the complete schema expected by the API.
         payload: dict = {
             "@type": None,
             "name": None,
@@ -377,6 +362,10 @@ class ComfoClimeAPI:
             payload["status"] = status
         if hp_standby is not None:
             payload["hpStandby"] = hp_standby
+        if scenario is not None:
+            payload["scenario"] = scenario
+        if scenario_time_left is not None:
+            payload["scenarioTimeLeft"] = scenario_time_left
 
         if not payload:
             _LOGGER.debug(
@@ -409,6 +398,41 @@ class ComfoClimeAPI:
             return await hass.async_add_executor_job(
                 lambda: self.update_dashboard(hass, **kwargs)
             )
+
+    async def async_call_device_method(
+        self,
+        hass,
+        device_uuid: str,
+        unit: int,
+        subunit: int,
+        method: int,
+        data: list[int],
+    ) -> None:
+        """Call a ComfoNet device method with its raw RMI payload."""
+        async with self._request_lock:
+            await hass.async_add_executor_job(
+                self.call_device_method,
+                device_uuid,
+                unit,
+                subunit,
+                method,
+                data,
+            )
+
+    def call_device_method(
+        self,
+        device_uuid: str,
+        unit: int,
+        subunit: int,
+        method: int,
+        data: list[int],
+    ) -> None:
+        """Call a ComfoNet device method through the ComfoClime REST API."""
+        if not all(0 <= value <= 255 for value in data):
+            raise ValueError("Method payload values must be bytes")
+        url = f"{self.base_url}/device/{device_uuid}/method/{unit}/{subunit}/{method}"
+        response = requests.put(url, json={"data": data}, timeout=5)
+        response.raise_for_status()
 
     async def async_update_thermal_profile(self, hass, updates: dict):
         """Async wrapper for update_thermal_profile method."""

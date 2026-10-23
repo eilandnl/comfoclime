@@ -46,6 +46,24 @@ The integration provides a comprehensive climate control entity that unifies all
 
 Additionally there are controls for the fan speed of the connected ComfoAir Q device. The range goes from 0 to 3.
 
+### Temporary scenarios
+
+The ComfoClime climate entity supports the Cooking, Party, Holiday and Boost
+scenarios as preset modes. You can also call `comfoclime.set_scenario_mode`.
+The service accepts an optional duration in minutes (1–1440); defaults are
+30 minutes for Cooking, Party and Boost, and 24 hours for Holiday. These
+scenario identifiers and defaults follow the still-open upstream proposal and
+have not been verified against every ComfoClime firmware version.
+
+### ComfoAir Q temperature profiles
+
+For each connected ComfoAir Q, the integration adds command buttons for Warm,
+Normal, Cool and Follow Temperature Schedule. These are write-only commands:
+the ComfoClime API does not currently provide reliable readback of the active
+Q temperature profile, so Home Assistant does not display a selected profile.
+The commands use the documented ComfoNet scheduler protocol, but the raw method
+route has not been verified against every ComfoClime API or device firmware.
+
 ### Preset Modes
 - **Comfort**: Maximum comfort temperature profile
 - **Power**: Power saving temperature profile

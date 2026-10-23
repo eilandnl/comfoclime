@@ -11,6 +11,7 @@ from .coordinator import (
     ComfoClimeDashboardCoordinator,
     ComfoClimeThermalprofileCoordinator,
 )
+from .scenarios import SCENARIO_DEFAULT_DURATIONS_MINUTES, SCENARIO_VALUES
 
 DOMAIN = "comfoclime"
 
@@ -28,11 +29,7 @@ def _get_target_device_and_entry(
         raise HomeAssistantError("The selected ComfoClime device was not found")
 
     device_uuid = next(
-        (
-            identifier
-            for domain, identifier in device.identifiers
-            if domain == DOMAIN
-        ),
+        (identifier for domain, identifier in device.identifiers if domain == DOMAIN),
         None,
     )
     if device_uuid is None:
@@ -62,14 +59,11 @@ def _get_target_device_and_entry(
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up integration-wide services once for all config entries."""
+
     async def handle_set_property_service(call: ServiceCall) -> None:
-        device, entry_data = _get_target_device_and_entry(
-            hass, call.data["device_id"]
-        )
+        device, entry_data = _get_target_device_and_entry(hass, call.data["device_id"])
         device_uuid = next(
-            identifier
-            for domain, identifier in device.identifiers
-            if domain == DOMAIN
+            identifier for domain, identifier in device.identifiers if domain == DOMAIN
         )
         api: ComfoClimeAPI = entry_data["api"]
         try:
@@ -130,8 +124,74 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
                 f"Failed to restart the ComfoClime device: {err}"
             ) from err
 
+    async def handle_set_scenario_mode_service(call: ServiceCall) -> None:
+        scenario = call.data["scenario"]
+        if scenario not in SCENARIO_VALUES:
+            raise HomeAssistantError(f"Unsupported ComfoClime scenario: {scenario}")
+
+        device_id = call.data.get("device_id")
+        if device_id:
+            device, entry_data = _get_target_device_and_entry(hass, device_id)
+            device_uuid = next(
+                identifier
+                for domain, identifier in device.identifiers
+                if domain == DOMAIN
+            )
+            main_device = entry_data.get("main_device")
+            if not main_device or main_device.get("uuid") != device_uuid:
+                raise HomeAssistantError(
+                    "Scenarios are supported only on the ComfoClime main device"
+                )
+        else:
+            entries = [
+                entry_data
+                for entry_data in hass.data.get(DOMAIN, {}).values()
+                if entry_data.get("main_device")
+            ]
+            if len(entries) != 1:
+                raise HomeAssistantError(
+                    "Select a ComfoClime device when more than one is configured"
+                )
+            entry_data = entries[0]
+            device_uuid = entry_data["main_device"]["uuid"]
+
+        duration_minutes = call.data.get("duration")
+        if duration_minutes is None:
+            duration_minutes = SCENARIO_DEFAULT_DURATIONS_MINUTES[scenario]
+        if (
+            isinstance(duration_minutes, bool)
+            or not isinstance(duration_minutes, int)
+            or not 1 <= duration_minutes <= 1440
+        ):
+            raise HomeAssistantError(
+                "Scenario duration must be between 1 and 1440 minutes"
+            )
+
+        api: ComfoClimeAPI = entry_data["api"]
+        try:
+            await api.async_update_dashboard(
+                hass,
+                scenario=SCENARIO_VALUES[scenario],
+                scenario_time_left=int(duration_minutes * 60),
+            )
+            await entry_data["coordinator"].async_request_refresh()
+            _LOGGER.info(
+                "Scenario %s set for %s minutes on %s",
+                scenario,
+                duration_minutes,
+                device_uuid,
+            )
+        except Exception as err:
+            _LOGGER.exception("Failed to set ComfoClime scenario %s", scenario)
+            raise HomeAssistantError(
+                f"Failed to set ComfoClime scenario {scenario}: {err}"
+            ) from err
+
     hass.services.async_register(DOMAIN, "set_property", handle_set_property_service)
     hass.services.async_register(DOMAIN, "reset_system", handle_reset_system_service)
+    hass.services.async_register(
+        DOMAIN, "set_scenario_mode", handle_set_scenario_mode_service
+    )
     return True
 
 
@@ -155,16 +215,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
 
     await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+        entry, ["sensor", "switch", "number", "select", "fan", "climate", "button"]
     )
-    if not hass.services.has_service(DOMAIN, "set_property"):
+    if not hass.services.has_service(
+        DOMAIN, "set_property"
+    ) or not hass.services.has_service(DOMAIN, "set_scenario_mode"):
         await async_setup(hass, {})
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+        entry, ["sensor", "switch", "number", "select", "fan", "climate", "button"]
     )
     if not unload_ok:
         return False
@@ -173,6 +235,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data[DOMAIN]:
         hass.services.async_remove(DOMAIN, "set_property")
         hass.services.async_remove(DOMAIN, "reset_system")
+        hass.services.async_remove(DOMAIN, "set_scenario_mode")
         hass.data.pop(DOMAIN)
     return True
 

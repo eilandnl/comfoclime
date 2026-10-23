@@ -60,3 +60,35 @@ reset_system:
       selector:
         device:
           integration: comfoclime
+
+set_scenario_mode:
+  name: ComfoClime-scenario instellen
+  description: Activeert een tijdelijk scenario op het ComfoClime-hoofdapparaat.
+  fields:
+    device_id:
+      name: Gerät
+      description: Kies het ComfoClime-hoofdapparaat; optioneel als er één is ingesteld.
+      required: false
+      selector:
+        device:
+          integration: comfoclime
+    scenario:
+      name: Scenario
+      required: true
+      selector:
+        select:
+          options:
+            - cooking
+            - party
+            - holiday
+            - scenario_boost
+    duration:
+      name: Duur
+      description: Duur in minuten; standaard 30 minuten, of 24 uur voor vakantie.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
