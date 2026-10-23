@@ -34,6 +34,9 @@
         "exhaust_coil_temperature": {
             "name": "Supply Coil Temperature"
         },
+        "heatpump_compressor_temperature": {
+            "name": "Heat Pump Compressor Temperature"
+        },
         "tpma_temperature": {
             "name": "Mean Outdoor Temperature"
         },

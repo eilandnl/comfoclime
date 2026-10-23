@@ -19,90 +19,163 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup(hass: HomeAssistant, config: dict):
-    return True  # wir nutzen keine YAML-Konfiguration mehr
+def _get_target_device_and_entry(
+    hass: HomeAssistant, device_id: str
+) -> tuple[dr.DeviceEntry, dict]:
+    """Resolve a registered ComfoClime device to its loaded config entry."""
+    device = dr.async_get(hass).async_get(device_id)
+    if device is None:
+        raise HomeAssistantError("The selected ComfoClime device was not found")
 
-
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
-    host = entry.data["host"]
-    api = ComfoClimeAPI(f"http://{host}", hass=hass, entry=entry)
-    # Dashboard-Coordinator erstellen
-    dashboard_coordinator = ComfoClimeDashboardCoordinator(hass, api)
-    await dashboard_coordinator.async_config_entry_first_refresh()
-    thermalprofile_coordinator = ComfoClimeThermalprofileCoordinator(hass, api)
-    await thermalprofile_coordinator.async_config_entry_first_refresh()
-    devices = await api.async_get_connected_devices(hass)
-    if DOMAIN not in hass.data:
-        hass.data[DOMAIN] = {}
-    hass.data[DOMAIN][entry.entry_id] = {
-        "api": api,
-        "coordinator": dashboard_coordinator,
-        "tpcoordinator": thermalprofile_coordinator,
-        "devices": devices,
-        "main_device": next((d for d in devices if d.get("modelTypeId") == 20), None),
-    }
-
-    await hass.config_entries.async_forward_entry_setups(
-        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+    device_uuid = next(
+        (
+            identifier
+            for domain, identifier in device.identifiers
+            if domain == DOMAIN
+        ),
+        None,
     )
+    if device_uuid is None:
+        raise HomeAssistantError("The selected device is not a ComfoClime device")
 
-    async def handle_set_property_service(call: ServiceCall):
-        device_id = call.data["device_id"]
-        path = call.data["path"]
-        value = call.data["value"]
-        byte_count = call.data["byte_count"]
-        signed = call.data.get("signed", True)
-        faktor = call.data.get("faktor", 1.0)
-        dev_reg = dr.async_get(hass)
-        device = dev_reg.async_get(device_id)
-        if not device or not device.identifiers:
-            _LOGGER.error("Gerät nicht gefunden oder ungültig")
-            return
-        domain, device_uuid = list(device.identifiers)[0]
-        if domain != DOMAIN:
-            _LOGGER.error(f"Gerät gehört nicht zur Integration {DOMAIN}")
-            return
+    matches = []
+    for entry_id in device.config_entries:
+        entry_data = hass.data.get(DOMAIN, {}).get(entry_id)
+        if entry_data is None:
+            continue
+        owned_uuids = {
+            connected_device.get("uuid")
+            for connected_device in entry_data.get("devices", [])
+        }
+        main_device = entry_data.get("main_device")
+        if main_device:
+            owned_uuids.add(main_device.get("uuid"))
+        if device_uuid in owned_uuids:
+            matches.append(entry_data)
+
+    if len(matches) != 1:
+        raise HomeAssistantError(
+            "Could not uniquely identify the integration entry for this device"
+        )
+    return device, matches[0]
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up integration-wide services once for all config entries."""
+    async def handle_set_property_service(call: ServiceCall) -> None:
+        device, entry_data = _get_target_device_and_entry(
+            hass, call.data["device_id"]
+        )
+        device_uuid = next(
+            identifier
+            for domain, identifier in device.identifiers
+            if domain == DOMAIN
+        )
+        api: ComfoClimeAPI = entry_data["api"]
         try:
             await api.async_set_property_for_device(
                 hass,
                 device_uuid=device_uuid,
-                property_path=path,
-                value=value,
-                byte_count=byte_count,
-                signed=signed,
-                faktor=faktor,
+                property_path=call.data["path"],
+                value=call.data["value"],
+                byte_count=call.data["byte_count"],
+                signed=call.data.get("signed", True),
+                faktor=call.data.get("faktor", 1.0),
             )
-            _LOGGER.info(f"Property {path} auf {value} gesetzt für {device_uuid}")
-        except Exception as e:
-            _LOGGER.error(f"Fehler beim Setzen von Property {path}: {e}")
-            raise HomeAssistantError(f"Fehler beim Setzen von Property {path}: {e}")
+            _LOGGER.info(
+                "Property %s set to %s for device %s",
+                call.data["path"],
+                call.data["value"],
+                device_uuid,
+            )
+        except Exception as err:
+            _LOGGER.exception("Failed to set property %s", call.data["path"])
+            raise HomeAssistantError(
+                f"Failed to set property {call.data['path']}: {err}"
+            ) from err
 
-    async def handle_reset_system_service(call: ServiceCall):
+    async def handle_reset_system_service(call: ServiceCall) -> None:
+        device_id = call.data.get("device_id")
+        if device_id:
+            device, entry_data = _get_target_device_and_entry(hass, device_id)
+            device_uuid = next(
+                identifier
+                for domain, identifier in device.identifiers
+                if domain == DOMAIN
+            )
+            main_device = entry_data.get("main_device")
+            if not main_device or main_device.get("uuid") != device_uuid:
+                raise HomeAssistantError(
+                    "Reset is only supported for the ComfoClime main device"
+                )
+        else:
+            entries = [
+                entry_data
+                for entry_data in hass.data.get(DOMAIN, {}).values()
+                if entry_data.get("main_device")
+            ]
+            if len(entries) != 1:
+                raise HomeAssistantError(
+                    "Select a ComfoClime device when more than one is configured"
+                )
+            entry_data = entries[0]
+            device_uuid = entry_data["main_device"]["uuid"]
+        api: ComfoClimeAPI = entry_data["api"]
         try:
             await api.async_reset_system(hass)
-            _LOGGER.info("ComfoClime Neustart ausgelöst")
-        except Exception as e:
-            _LOGGER.error(f"Fehler beim Neustart des Geräts: {e}")
-            raise HomeAssistantError(f"Fehler beim Neustart des Geräts: {e}")
+            _LOGGER.info("ComfoClime restart requested for %s", device_uuid)
+        except Exception as err:
+            _LOGGER.exception("Failed to restart ComfoClime device %s", device_uuid)
+            raise HomeAssistantError(
+                f"Failed to restart the ComfoClime device: {err}"
+            ) from err
 
     hass.services.async_register(DOMAIN, "set_property", handle_set_property_service)
     hass.services.async_register(DOMAIN, "reset_system", handle_reset_system_service)
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
-    await hass.config_entries.async_forward_entry_unload(entry, "sensor")
-    await hass.config_entries.async_forward_entry_unload(entry, "switch")
-    await hass.config_entries.async_forward_entry_unload(entry, "number")
-    await hass.config_entries.async_forward_entry_unload(entry, "select")
-    await hass.config_entries.async_forward_entry_unload(entry, "fan")
-    await hass.config_entries.async_forward_entry_unload(entry, "climate")
-    hass.data[DOMAIN].pop(entry.entry_id)
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    hass.data.setdefault(DOMAIN, {})
+    host = entry.data["host"]
+    api = ComfoClimeAPI(f"http://{host}", hass=hass, entry=entry)
+    dashboard_coordinator = ComfoClimeDashboardCoordinator(hass, api)
+    await dashboard_coordinator.async_config_entry_first_refresh()
+    thermalprofile_coordinator = ComfoClimeThermalprofileCoordinator(hass, api)
+    await thermalprofile_coordinator.async_config_entry_first_refresh()
+    devices = await api.async_get_connected_devices(hass)
+    hass.data[DOMAIN][entry.entry_id] = {
+        "api": api,
+        "coordinator": dashboard_coordinator,
+        "tpcoordinator": thermalprofile_coordinator,
+        "devices": devices,
+        "main_device": next(
+            (device for device in devices if device.get("modelTypeId") == 20), None
+        ),
+    }
+
+    await hass.config_entries.async_forward_entry_setups(
+        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+    )
+    if not hass.services.has_service(DOMAIN, "set_property"):
+        await async_setup(hass, {})
     return True
 
 
-async def async_reload_entry(hass, entry):
-    await async_unload_entry(hass, entry)
-    await async_setup_entry(hass, entry)
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry, ["sensor", "switch", "number", "select", "fan", "climate"]
+    )
+    if not unload_ok:
+        return False
+
+    hass.data[DOMAIN].pop(entry.entry_id, None)
+    if not hass.data[DOMAIN]:
+        hass.services.async_remove(DOMAIN, "set_property")
+        hass.services.async_remove(DOMAIN, "reset_system")
+        hass.data.pop(DOMAIN)
+    return True
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
