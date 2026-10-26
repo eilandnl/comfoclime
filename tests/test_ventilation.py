@@ -4,7 +4,7 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 API_PATH = (
     Path(__file__).parents[1] / "custom_components" / "comfoclime" / "comfoclime_api.py"
@@ -78,11 +78,23 @@ class VentilationTests(unittest.TestCase):
                 with patch.object(REQUESTS_STUB, "put", return_value=response) as put:
                     api.set_ventilation_mode("SIT17004997", mode)
 
-                response.raise_for_status.assert_called_once_with()
-                put.assert_called_once_with(
-                    "http://comfoclime.local/device/SIT17004997/method/21/1/132",
-                    json={"data": [timer, 0, 0, 0, 0, 0x10, 0x0E, 0, 0, value]},
-                    timeout=5,
+                others = [t for t in (0x0B, 0x01, 0x06) if t != timer]
+                cancel_url = (
+                    "http://comfoclime.local/device/SIT17004997/method/21/1/133"
+                )
+                self.assertEqual(
+                    put.call_args_list,
+                    [
+                        *(
+                            call(cancel_url, json={"data": [t]}, timeout=5)
+                            for t in others
+                        ),
+                        call(
+                            "http://comfoclime.local/device/SIT17004997/method/21/1/132",
+                            json={"data": [timer, 0, 0, 0, 0, 0x10, 0x0E, 0, 0, value]},
+                            timeout=5,
+                        ),
+                    ],
                 )
 
     def test_auto_cancels_all_preset_timers(self):
@@ -92,12 +104,20 @@ class VentilationTests(unittest.TestCase):
         with patch.object(REQUESTS_STUB, "put", return_value=response) as put:
             api.set_ventilation_mode("SIT17004997", "auto")
 
-        put.assert_called_once_with(
-            "http://comfoclime.local/device/SIT17004997/method/21/8/133",
-            json={"data": [1]},
-            timeout=5,
+        cancel_url = "http://comfoclime.local/device/SIT17004997/method/21/1/133"
+        self.assertEqual(
+            put.call_args_list,
+            [
+                call(cancel_url, json={"data": [0x0B]}, timeout=5),
+                call(cancel_url, json={"data": [0x01]}, timeout=5),
+                call(cancel_url, json={"data": [0x06]}, timeout=5),
+                call(
+                    "http://comfoclime.local/device/SIT17004997/method/21/8/133",
+                    json={"data": [1]},
+                    timeout=5,
+                ),
+            ],
         )
-        response.raise_for_status.assert_called_once_with()
 
     def test_set_ventilation_mode_uses_requested_duration(self):
         api = ComfoClimeAPI("http://comfoclime.local")
@@ -110,6 +130,7 @@ class VentilationTests(unittest.TestCase):
             put.call_args.kwargs["json"]["data"],
             [6, 0, 0, 0, 0, 0x18, 0x15, 0, 0, 3],
         )
+        self.assertEqual(put.call_count, 3)
 
     def test_set_ventilation_mode_rejects_invalid_duration(self):
         api = ComfoClimeAPI("http://comfoclime.local")

@@ -3,11 +3,13 @@ import asyncio
 import logging
 import time
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import requests
+from zoneinfo import ZoneInfo
 
 _LOGGER = logging.getLogger(__name__)
+
+PRESET_TIMERS = (0x0B, 0x01, 0x06)
 
 
 class ComfoClimeAPI:
@@ -533,6 +535,16 @@ class ComfoClimeAPI:
                 duration_minutes,
             )
 
+    def cancel_preset_timer(self, device_uuid: str, timer: int) -> None:
+        """End an active ComfoAir Q SCHEDULE timer so it stops overriding airflow."""
+        self.call_device_method(
+            device_uuid=device_uuid,
+            unit=0x15,
+            subunit=0x01,
+            method=0x85,
+            data=[timer],
+        )
+
     def set_ventilation_mode(
         self,
         device_uuid: str,
@@ -541,6 +553,8 @@ class ComfoClimeAPI:
     ) -> None:
         """Send a documented SCHEDULE timer command for a ComfoAir Q preset."""
         if mode == "auto":
+            for timer in PRESET_TIMERS:
+                self.cancel_preset_timer(device_uuid, timer)
             self.call_device_method(
                 device_uuid=device_uuid,
                 unit=0x15,
@@ -572,6 +586,10 @@ class ComfoClimeAPI:
                 "Ventilation mode must be 'auto', 'away', 'low', 'medium', "
                 "'high', or 'boost'"
             ) from err
+
+        for other in PRESET_TIMERS:
+            if other != timer:
+                self.cancel_preset_timer(device_uuid, other)
 
         duration_seconds = int(duration_minutes) * 60
         self.call_device_method(
